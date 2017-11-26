@@ -18,7 +18,8 @@ app.get('/gen', function (req, res) {
   });
 });
 
-Generator.start(20, (board) => { });
+Generator.start(0, (board) => { });
+
 
 server.listen(config.port, () => {
   console.info('There we go ♕');

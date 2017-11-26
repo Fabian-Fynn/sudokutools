@@ -1,45 +1,60 @@
+const sleepAmount = 0;
+
 const Generator = () => {
-  const start = (visualizationTimeout, done) => {
+  async function start(visualizationTimeout, done) {
+    console.time("gen");
     const emptyBoard = Array(9).fill().map(() => Array(9).fill('_'));
-    const filledBoard = fillBoard(emptyBoard, visualizationTimeout);
-    return done(filledBoard);
+    let board = emptyBoard.map((b) => b.slice(0));
+    const cellValues = Array(9).fill().map(() => Array(9).fill().map(() => {
+      return getNewValues();
+    }));
+    await addNumber({ board, cellValues, pos: 0, added: false });
+    console.timeEnd("gen");
+    return done(board);
   };
 
-  async function fillBoard(board, visualizationTimeout) {
-    const possibleValues = Array(9).fill().map((e, i) => i + 1);
-    for (let rowNumber = 0; rowNumber < board.length; rowNumber++) {
-      let row = board[rowNumber];
-      let availableValues = shuffle(possibleValues.slice(0));
-      for (let colNumber = 0; colNumber < row.length; colNumber++) {
-        let count = 0;
-        let currentValue = 'X';
+  function getNewValues() {
+    let possibleValues = Array(9).fill().map((e, i) => i + 1);
+    possibleValues = shuffle(possibleValues.slice(0));
 
-        for (var i = 0; i < availableValues.length; i++) {
-          var val = availableValues[i];
-          if (isPossible({ board, row: rowNumber, col: colNumber, value: val })) {
-            currentValue = val;
-            availableValues.splice(i, 1);
-            break;
-          }
-        }
+    return Array(9).fill().map((e, i) => possibleValues[i]);
+  }
 
-        if (currentValue === 'X') {
-          rowNumber--;
-          break;
-        }
-        availableValues = shuffle(availableValues);
-        board[rowNumber][colNumber] = currentValue;
-        if (visualizationTimeout !== false) {
-          if (visualizationTimeout > 0) {
-            drawBoard(board);
-            await sleep(visualizationTimeout);
-          }
-        }
+  async function addNumber({ board, cellValues, pos }) {
+    if (pos >= 81) {
+      return;
+    }
+
+    // Get row and col
+    const row = Math.floor((pos) / 9);
+    const col = pos % 9;
+
+    // Try to add Number out of all available cellValues
+    for (let idx = 0; idx < cellValues[row][col].length; idx++) {
+      const value = cellValues[row][col][idx];
+
+      // Try to insert
+      if (isPossible({ board, row, col, value })) {
+        // console.log('is possible');
+
+        board[row][col] = value;
+        cellValues[row][col].splice(idx, 1);
+
+        drawBoard(board);
+        await sleep(sleepAmount);
+
+        // add next number
+        return addNumber({ board, cellValues, pos: pos + 1 });
       }
     }
+
+    // Go back one cell and try different value
+    board[row][col] = '_';
+    cellValues[row][col] = getNewValues();
     drawBoard(board);
-    return board;
-  };
+    await sleep(sleepAmount);
+    return addNumber({ board, cellValues, pos: pos - 1 });
+  }
 
   const isPossible = ({ board, row, col, value }) => {
     // check if value can be inserted in current row
@@ -52,11 +67,28 @@ const Generator = () => {
       if (board[currentRow][col] === value) return false;
     }
 
+    // check if value can be inserted in current square
+    const squareHorizontal = Math.floor(col / 3);
+    const squareVertical = Math.floor(row / 3);
+    const breakHorizontal = squareHorizontal * 3;
+    const breakVertical = squareVertical * 3;
+    const valuesInSquare = [];
+
+    for (let currentRow = breakVertical + 2; currentRow >= breakVertical; currentRow--) {
+      for (let currentCol = breakHorizontal + 2; currentCol >= breakHorizontal; currentCol--) {
+        valuesInSquare.push(board[currentRow][currentCol]);
+      }
+    }
+
+    for (let idx = 0; idx < valuesInSquare.length; idx++) {
+      if (valuesInSquare[idx] === value) return false;
+    }
+
     return true;
   }
 
   const drawBoard = (board) => {
-    process.stdout.write('\033c');
+    // process.stdout.write('\033c'); //clear cmd
 
     console.log(' - - - - - - - - - - - -');
 
@@ -86,8 +118,12 @@ const Generator = () => {
     return a;
   }
 
-  const sleep = (ms) => {
-    return new Promise(resolve => setTimeout(resolve, ms));
+  const sleep = () => {
+    if (sleepAmount > 0) {
+      return new Promise(resolve => setTimeout(resolve, sleepAmount));
+    } else {
+      return new Promise(resolve => resolve());
+    }
   }
 
   return {
